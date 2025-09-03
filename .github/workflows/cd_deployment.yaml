@@ -1,0 +1,227 @@
+name: Continues Itegration Workflow - Release
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "release-*"
+      - "uat-release-*"
+
+jobs:
+  release_staging:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{vars.NODE_VERSION}}
+
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        with:
+          version: 10.12.1
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{env.STORE_PATH}}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup
+        run: |
+          pnpm install
+          pnpm run build --mode staging
+
+      - name: Test Runing
+        run: |
+          pnpm run preview & PID=$!
+          sleep 7
+          response_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080)
+          if [ $response_code -eq 200 ]; then
+            echo "App is run normally 🎉"
+          else
+            echo "App is not running 🚫"
+            exit 1
+          fi
+          if ps -p $PID > /dev/null; then
+            kill $PID
+          fi
+          if ps -p $PID > /dev/null; then
+            kill $PID
+          fi
+
+      - name: Deploy
+        run: |
+          npx vercel build
+          npx vercel --prod --token ${{secrets.TOKEN_ACCESS_VERCEL}}
+
+  release_uat:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/uat-release-')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{secrets.PAT}}
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{vars.NODE_VERSION}}
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Setup Branch
+        run: |
+          git config --global init.defaultBranch master
+          git config --global user.email "designundangan@gmail.com"
+          git config --global user.name "Design Undangan"
+          git fetch
+          git checkout master
+          if git show-ref --verify --quiet "refs/heads/uat"; then git branch -D uat; fi
+          git checkout -b uat $(git rev-list -n 1 $(git describe --tags --abbrev=0 $(git rev-list --tags="uat-release-*" --max-count=1)))
+
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        with:
+          version: 10.12.1
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{env.STORE_PATH}}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup Build
+        run: |
+          pnpm install
+          pnpm run build --mode uat
+
+      - name: Test Runing
+        run: |
+          pnpm run preview & PID=$!
+          sleep 5
+          response_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080)
+          if [ $response_code -eq 200 ]; then
+            echo "App is run normally 🎉"
+          else
+            echo "App is not running 🚫"
+            exit 1
+          fi
+          if ps -p $PID > /dev/null; then
+            kill $PID
+          fi
+          if ps -p $PID > /dev/null; then
+            kill $PID
+          fi
+
+      - name: Register SSH Host
+        run: |
+          ssh-keyscan -p ${{vars.HOSTING_PORT}} ${{vars.HOSTING_HOST}} >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          cd dist/
+          git init
+          git remote add cpanel ${{vars.UAT_REPO}}
+          git add .
+          git commit -m 'feat: release app'
+          git push cpanel master --force
+
+  release_production:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/release-')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{secrets.PAT}}
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{vars.NODE_VERSION}}
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Setup Branch
+        run: |
+          git config --global init.defaultBranch master
+          git config --global user.email "designundangan@gmail.com"
+          git config --global user.name "Design Undangan"
+          git fetch
+          git checkout master
+          if git show-ref --verify --quiet "refs/heads/production"; then git branch -D production; fi
+          git checkout -b production $(git rev-list -n 1 $(git describe --tags --abbrev=0 $(git rev-list --tags="release-*" --max-count=1)))
+
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        with:
+          version: 10.12.1
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{env.STORE_PATH}}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Setup Build
+        run: |
+          pnpm install
+          pnpm run build --mode production
+
+      - name: Test Runing
+        run: |
+          pnpm run preview & PID=$!
+          sleep 5
+          response_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080)
+          if [ $response_code -eq 200 ]; then
+            echo "App is run normally 🎉"
+          else
+            echo "App is not running 🚫"
+            exit 1
+          fi
+          if ps -p $PID > /dev/null; then
+            kill $PID
+          fi
+          if ps -p $PID > /dev/null; then
+            kill $PID
+          fi
+
+      - name: Register SSH Host
+        run: |
+          ssh-keyscan -p ${{vars.HOSTING_PORT}} ${{vars.HOSTING_HOST}} >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          cd dist/
+          git init
+          git remote add cpanel ${{vars.PRODUCTION_REPO}}
+          git add .
+          git commit -m 'feat: release app'
+          git push cpanel master --force

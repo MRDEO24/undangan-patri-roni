@@ -1,0 +1,1 @@
+export const formDataToJson = (formData) => Object.fromEntries(formData);

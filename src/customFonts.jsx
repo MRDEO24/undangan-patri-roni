@@ -11,6 +11,12 @@ const Fonts = () => (
         src: url('${PROD ? '' : '/public'}/rusticWeddingBloom/MolgakClassy-Regular.woff2') format('woff2');
       }
       @font-face {
+        font-family: 'StyleScript';
+        font-style: normal;
+        font-display: swap;
+        src: url('${PROD ? '' : '/public'}/rusticWeddingBloom/StyleScript-Regular.ttf') format('woff2');
+      }
+      @font-face {
         font-family: 'PoppinsRegular';
         font-style: normal;
         font-weight: 400;

@@ -84,6 +84,11 @@ export const theme = extendTheme({
           fontSize: '4rem',
           
         },
+        latinos: {
+          fontFamily: 'StyleScript',
+          
+        },
+
       },
     },
     Heading: {

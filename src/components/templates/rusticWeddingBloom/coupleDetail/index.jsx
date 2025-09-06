@@ -72,14 +72,16 @@ export default function CoupleDetail({
           <MotionText
             variants={fadeInTop}
             my="5"
-            variant="rusticWeddingBloomTextSemi"
+            variant="latinos"
+            fontSize={'1rem'}
           >
             {greeting?.main_greeting}
           </MotionText>
           <MotionText
             variants={fadeInTop}
             my="5"
-            variant="rusticWeddingBloomText"
+            variant="latinos"
+            fontSize={'1rem'}
           >
             {greeting?.secondary_greeting}
           </MotionText>
